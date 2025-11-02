@@ -5,16 +5,16 @@
 
 # Start containers in detached mode
 up:
-	docker-compose up -d --build
+	docker compose up -d --build
 
 # Stop and remove containers
 down:
-	docker-compose down
+	docker compose down
 
 # Restart containers
 restart:
-	docker-compose restart
+	docker compose restart
 
 # Show logs (follow mode)
 logs:
-	docker-compose logs -f bot
+	docker compose logs -f bot

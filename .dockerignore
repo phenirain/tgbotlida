@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.example
+
+# Python files (old implementation)
+bot.py
+requirements.txt
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Data directories
+data/
+*.db
+
+# Documentation
+README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Build artifacts
+bot
+*.exe

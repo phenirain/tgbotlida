@@ -1,18 +1,32 @@
-FROM python:3.11-slim
+# Build stage
+FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Install build dependencies
+RUN apk add --no-cache git
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy go mod files
+COPY go.mod go.sum* ./
 
-# Copy application code
-COPY bot.py .
+# Download dependencies
+RUN go mod download
 
-# Create directory for database
-RUN mkdir -p /app/data
+# Copy source code
+COPY . .
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bot .
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/bot .
 
 # Run the bot
-CMD ["python", "bot.py"]
+CMD ["./bot"]
