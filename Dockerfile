@@ -15,6 +15,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Create assets directory if it doesn't exist
+RUN mkdir -p /app/assets
+
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bot .
 
@@ -27,6 +30,9 @@ WORKDIR /app
 
 # Copy the binary from builder
 COPY --from=builder /app/bot .
+
+# Copy assets folder (photos, etc.)
+COPY --from=builder /app/assets/ ./assets/
 
 # Run the bot
 CMD ["./bot"]

@@ -24,6 +24,7 @@ type Request struct {
 	Op       OperationType
 	UserID   int64
 	Email    string
+	Username string
 	Response chan Response
 }
 
@@ -80,6 +81,7 @@ func (d *Database) initDB() error {
 	createTableQuery := `
 		CREATE TABLE IF NOT EXISTS users (
 			user_id BIGINT PRIMARY KEY,
+			username VARCHAR(255),
 			email VARCHAR(255) NOT NULL UNIQUE,
 			created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 		)
@@ -106,7 +108,7 @@ func (d *Database) worker() {
 			req.Response <- Response{Exists: exists, Error: err}
 
 		case OpSaveUser:
-			err := d.saveUserEmailSync(req.UserID, req.Email)
+			err := d.saveUserEmailSync(req.UserID, req.Username, req.Email)
 			req.Response <- Response{Error: err}
 		}
 		close(req.Response)
@@ -143,12 +145,13 @@ func (d *Database) EmailExists(email string) (bool, error) {
 	return resp.Exists, resp.Error
 }
 
-// SaveUserEmail saves a user's email asynchronously
-func (d *Database) SaveUserEmail(userID int64, email string) error {
+// SaveUserEmail saves a user's email and username asynchronously
+func (d *Database) SaveUserEmail(userID int64, username, email string) error {
 	respChan := make(chan Response, 1)
 	req := Request{
 		Op:       OpSaveUser,
 		UserID:   userID,
+		Username: username,
 		Email:    email,
 		Response: respChan,
 	}
@@ -192,9 +195,9 @@ func (d *Database) emailExistsSync(email string) (bool, error) {
 }
 
 // saveUserEmailSync is the synchronous implementation called by the worker
-func (d *Database) saveUserEmailSync(userID int64, email string) error {
-	query := "INSERT INTO users (user_id, email) VALUES ($1, $2)"
-	_, err := d.db.Exec(query, userID, email)
+func (d *Database) saveUserEmailSync(userID int64, username, email string) error {
+	query := "INSERT INTO users (user_id, username, email) VALUES ($1, $2, $3)"
+	_, err := d.db.Exec(query, userID, username, email)
 	if err != nil {
 		return fmt.Errorf("failed to save user email: %w", err)
 	}

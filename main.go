@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"regexp"
+	"strings"
 	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -15,6 +16,8 @@ type ConversationState int
 
 const (
 	StateNone ConversationState = iota
+	StateAwaitingListenConfirm
+	StateAwaitingPolicyAccept
 	StateAwaitingEmail
 )
 
@@ -78,33 +81,49 @@ func (b *Bot) handleStart(update tgbotapi.Update) {
 	exists, err := b.db.UserExists(userID)
 	if err != nil {
 		log.Printf("Error checking user existence: %v", err)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "An error occurred. Please try again later.")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 		b.api.Send(msg)
 		return
 	}
 
 	if exists {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "You have already submitted your email. Thank you!")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже отправили свой email. Спасибо!")
 		b.api.Send(msg)
+		b.setState(userID, StateNone) // Reset state
 		return
 	}
 
-	// Send welcome message
-	welcomeMsg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.WelcomeMessage)
-	b.api.Send(welcomeMsg)
-
-	// Show policy acceptance button
+	// Create "Слушаю" button
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Accept", "accept_policy"),
+			tgbotapi.NewInlineKeyboardButtonData("Слушаю", "listen_confirm"),
 		),
 	)
 
-	policyMsg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.PolicyText)
-	policyMsg.ReplyMarkup = keyboard
-	b.api.Send(policyMsg)
+	// Send photo with welcome message and "Слушаю" button
+	if b.cfg.PhotoURL != "" {
+		var photoMsg tgbotapi.PhotoConfig
 
-	b.setState(userID, StateAwaitingEmail)
+		// Check if PhotoURL is a local file path or URL
+		if strings.HasPrefix(b.cfg.PhotoURL, "http://") || strings.HasPrefix(b.cfg.PhotoURL, "https://") {
+			// URL
+			photoMsg = tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FileURL(b.cfg.PhotoURL))
+		} else {
+			// Local file path
+			photoMsg = tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FilePath(b.cfg.PhotoURL))
+		}
+
+		photoMsg.Caption = b.cfg.WelcomeMessage
+		photoMsg.ReplyMarkup = keyboard
+		b.api.Send(photoMsg)
+	} else {
+		// If no photo URL, send as text message
+		textMsg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.WelcomeMessage)
+		textMsg.ReplyMarkup = keyboard
+		b.api.Send(textMsg)
+	}
+
+	b.setState(userID, StateAwaitingListenConfirm)
 }
 
 // handleCallbackQuery handles callback queries (button presses)
@@ -116,7 +135,43 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 	callback := tgbotapi.NewCallback(query.ID, "")
 	b.api.Request(callback)
 
-	if query.Data == "accept_policy" {
+	switch query.Data {
+	case "listen_confirm":
+		// User clicked "Слушаю" button
+		// Remove "Слушаю" button from previous message
+		if query.Message.Photo != nil {
+			// Edit photo caption to remove button
+			editCaption := tgbotapi.NewEditMessageCaption(
+				query.Message.Chat.ID,
+				query.Message.MessageID,
+				b.cfg.WelcomeMessage,
+			)
+			b.api.Send(editCaption)
+		} else {
+			// Edit text message to remove button
+			editMsg := tgbotapi.NewEditMessageText(
+				query.Message.Chat.ID,
+				query.Message.MessageID,
+				b.cfg.WelcomeMessage,
+			)
+			b.api.Send(editMsg)
+		}
+
+		// Send policy text with "Соглашаюсь" button
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Соглашаюсь", "accept_policy"),
+			),
+		)
+		policyMsg := tgbotapi.NewMessage(query.Message.Chat.ID, b.cfg.PolicyText)
+		policyMsg.ReplyMarkup = keyboard
+		policyMsg.ParseMode = "markdown"
+		b.api.Send(policyMsg)
+
+		b.setState(userID, StateAwaitingPolicyAccept)
+
+	case "accept_policy":
+		// User clicked "Соглашаюсь" button
 		// Check if user already submitted (async)
 		exists, err := b.db.UserExists(userID)
 		if err != nil {
@@ -124,7 +179,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 			editMsg := tgbotapi.NewEditMessageText(
 				query.Message.Chat.ID,
 				query.Message.MessageID,
-				"An error occurred. Please try again later.",
+				"Произошла ошибка. Пожалуйста, попробуйте позже.",
 			)
 			b.api.Send(editMsg)
 			return
@@ -134,23 +189,25 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 			editMsg := tgbotapi.NewEditMessageText(
 				query.Message.Chat.ID,
 				query.Message.MessageID,
-				"You have already submitted your email. Thank you!",
+				"Вы уже отправили свой email. Спасибо!",
 			)
 			b.api.Send(editMsg)
 			b.setState(userID, StateNone)
 			return
 		}
 
-		// Update message to show policy accepted
+		// Update message to show policy accepted (remove button)
 		editMsg := tgbotapi.NewEditMessageText(
 			query.Message.Chat.ID,
 			query.Message.MessageID,
-			"Policy accepted!",
+			b.cfg.PolicyText,
 		)
+		editMsg.ParseMode = "markdown" // Enable HTML formatting
 		b.api.Send(editMsg)
 
-		// Ask for email
-		msg := tgbotapi.NewMessage(query.Message.Chat.ID, "Please provide your email address:")
+		// Send second message asking for email
+		msg := tgbotapi.NewMessage(query.Message.Chat.ID, b.cfg.SecondMessage)
+		msg.ParseMode = "markdown" // Enable HTML formatting
 		b.api.Send(msg)
 
 		b.setState(userID, StateAwaitingEmail)
@@ -171,19 +228,20 @@ func (b *Bot) handleMessage(update tgbotapi.Update) {
 func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	userID := update.Message.From.ID
 	email := update.Message.Text
+	username := update.Message.From.UserName
 
 	// Check if user already submitted (async)
 	exists, err := b.db.UserExists(userID)
 	if err != nil {
 		log.Printf("Error checking user existence: %v", err)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "An error occurred. Please try again later.")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 		b.api.Send(msg)
 		b.setState(userID, StateNone)
 		return
 	}
 
 	if exists {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "You have already submitted your email. Thank you!")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже отправили свой email. Спасибо!")
 		b.api.Send(msg)
 		b.setState(userID, StateNone)
 		return
@@ -191,7 +249,7 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 
 	// Validate email
 	if !isValidEmail(email) {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid email format. Please provide a valid email address:")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Неверный формат email. Пожалуйста, укажите корректный email адрес:")
 		b.api.Send(msg)
 		return
 	}
@@ -200,30 +258,37 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	emailExists, err := b.db.EmailExists(email)
 	if err != nil {
 		log.Printf("Error checking email existence: %v", err)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "An error occurred. Please try again later.")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 		b.api.Send(msg)
 		b.setState(userID, StateNone)
 		return
 	}
 
 	if emailExists {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "This email is already registered. Please use a different email address.")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Этот email уже зарегистрирован. Пожалуйста, используйте другой email адрес.")
 		b.api.Send(msg)
 		return
 	}
 
-	// Save email (async)
-	err = b.db.SaveUserEmail(userID, email)
+	// Save email and username (async)
+	err = b.db.SaveUserEmail(userID, username, email)
 	if err != nil {
 		log.Printf("Error saving email: %v", err)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "An error occurred. Please try again later.")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
 		b.api.Send(msg)
 		b.setState(userID, StateNone)
 		return
 	}
 
-	// Send final message
+	// Send final message with album link button
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("Слушать альбом", b.cfg.AlbumLink),
+		),
+	)
+
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.FinalMessage)
+	msg.ReplyMarkup = keyboard
 	b.api.Send(msg)
 	b.setState(userID, StateNone)
 }
@@ -232,7 +297,7 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 func (b *Bot) handleCancel(update tgbotapi.Update) {
 	userID := update.Message.From.ID
 	b.setState(userID, StateNone)
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Operation cancelled.")
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Операция отменена.")
 	b.api.Send(msg)
 }
 
