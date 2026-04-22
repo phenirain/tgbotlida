@@ -10,6 +10,7 @@ import (
 // Config holds all configuration for the bot
 type Config struct {
 	BotToken       string
+	WebhookURL     string
 	WelcomeMessage string
 	PhotoURL       string
 	PolicyText     string
@@ -34,6 +35,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		BotToken:       botToken,
+		WebhookURL:     os.Getenv("WEBHOOK_URL"),
 		WelcomeMessage: getEnvOrDefault("WELCOME_MESSAGE", "Welcome to our bot!"),
 		PhotoURL:       getEnvOrDefault("PHOTO_URL", ""),
 		PolicyText:     getEnvOrDefault("POLICY_TEXT", "Please accept our privacy policy to continue."),

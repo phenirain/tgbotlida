@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"regexp"
 	"strings"
 	"sync"
@@ -303,15 +304,34 @@ func (b *Bot) handleCancel(update tgbotapi.Update) {
 
 // Run starts the bot and handles updates
 func (b *Bot) Run() {
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	var updates tgbotapi.UpdatesChannel
 
-	updates := b.api.GetUpdatesChan(u)
-
-	log.Println("Bot started")
+	if b.cfg.WebhookURL != "" {
+		wh, err := tgbotapi.NewWebhook(b.cfg.WebhookURL + "/" + b.cfg.BotToken)
+		if err != nil {
+			log.Fatalf("Failed to create webhook config: %v", err)
+		}
+		if _, err := b.api.Request(wh); err != nil {
+			log.Fatalf("Failed to set webhook: %v", err)
+		}
+		updates = b.api.ListenForWebhook("/" + b.cfg.BotToken)
+		go func() {
+			log.Println("Bot started (webhook mode)")
+			if err := http.ListenAndServe(":8080", nil); err != nil {
+				log.Fatalf("HTTP server error: %v", err)
+			}
+		}()
+	} else {
+		if _, err := b.api.Request(tgbotapi.DeleteWebhookConfig{}); err != nil {
+			log.Printf("Failed to delete webhook: %v", err)
+		}
+		u := tgbotapi.NewUpdate(0)
+		u.Timeout = 60
+		updates = b.api.GetUpdatesChan(u)
+		log.Println("Bot started (polling mode)")
+	}
 
 	for update := range updates {
-		// Handle different update types
 		if update.Message != nil {
 			if update.Message.IsCommand() {
 				switch update.Message.Command() {
