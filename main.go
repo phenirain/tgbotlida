@@ -296,6 +296,7 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.FinalMessage)
 	msg.ReplyMarkup = keyboard
+	msg.ParseMode = "html"
 	b.send(msg)
 	b.setState(userID, StateNone)
 }
