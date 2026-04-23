@@ -171,7 +171,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 		)
 		policyMsg := tgbotapi.NewMessage(query.Message.Chat.ID, b.cfg.PolicyText)
 		policyMsg.ReplyMarkup = keyboard
-		policyMsg.ParseMode = "markdown"
+		policyMsg.ParseMode = "html"
 		b.send(policyMsg)
 
 		b.setState(userID, StateAwaitingPolicyAccept)
@@ -208,12 +208,12 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 			query.Message.MessageID,
 			b.cfg.PolicyText,
 		)
-		editMsg.ParseMode = "markdown" // Enable HTML formatting
+		editMsg.ParseMode = "html" // Enable HTML formatting
 		b.send(editMsg)
 
 		// Send second message asking for email
 		msg := tgbotapi.NewMessage(query.Message.Chat.ID, b.cfg.SecondMessage)
-		msg.ParseMode = "markdown" // Enable HTML formatting
+		msg.ParseMode = "html" // Enable HTML formatting
 		b.send(msg)
 
 		b.setState(userID, StateAwaitingEmail)
