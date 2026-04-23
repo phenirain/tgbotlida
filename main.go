@@ -313,6 +313,7 @@ func (b *Bot) Run() {
 
 	for update := range updates {
 		if update.Message != nil {
+			log.Printf("update from @%s (id=%d): %q", update.Message.From.UserName, update.Message.From.ID, update.Message.Text)
 			if update.Message.IsCommand() {
 				switch update.Message.Command() {
 				case "start":
@@ -324,6 +325,7 @@ func (b *Bot) Run() {
 				b.handleMessage(update)
 			}
 		} else if update.CallbackQuery != nil {
+			log.Printf("callback from @%s (id=%d): %q", update.CallbackQuery.From.UserName, update.CallbackQuery.From.ID, update.CallbackQuery.Data)
 			b.handleCallbackQuery(update)
 		}
 	}

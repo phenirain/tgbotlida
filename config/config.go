@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -42,6 +43,15 @@ func Load() (*Config, error) {
 		AlbumLink:      getEnvOrDefault("ALBUM_LINK", "https://example.com"),
 		DatabaseURL:    databaseURL,
 	}
+
+	log.Printf("Config loaded: WELCOME_MESSAGE=%v, PHOTO_URL=%v, POLICY_TEXT=%v, SECOND_MESSAGE=%v, FINAL_MESSAGE=%v, ALBUM_LINK=%v",
+		cfg.WelcomeMessage != "",
+		cfg.PhotoURL != "",
+		cfg.PolicyText != "",
+		cfg.SecondMessage != "",
+		cfg.FinalMessage != "",
+		cfg.AlbumLink != "",
+	)
 
 	return cfg, nil
 }
