@@ -120,11 +120,12 @@ func (b *Bot) handleStart(update tgbotapi.Update) {
 		}
 
 		photoMsg.Caption = b.cfg.WelcomeMessage
+		photoMsg.ParseMode = "html"
 		photoMsg.ReplyMarkup = keyboard
 		b.send(photoMsg)
 	} else {
-		// If no photo URL, send as text message
 		textMsg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.WelcomeMessage)
+		textMsg.ParseMode = "html"
 		textMsg.ReplyMarkup = keyboard
 		b.send(textMsg)
 	}
