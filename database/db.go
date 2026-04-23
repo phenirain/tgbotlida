@@ -4,9 +4,17 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+type User struct {
+	UserID    int64
+	Username  string
+	Email     string
+	CreatedAt time.Time
+}
 
 type Database struct {
 	db *sql.DB
@@ -83,6 +91,24 @@ func (d *Database) SaveUserEmail(userID int64, username, email string) error {
 		return fmt.Errorf("failed to save user email: %w", err)
 	}
 	return nil
+}
+
+func (d *Database) GetAllUsers() ([]User, error) {
+	rows, err := d.db.Query("SELECT user_id, username, email, created_at FROM users ORDER BY created_at")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.UserID, &u.Username, &u.Email, &u.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }
 
 func (d *Database) Close() error {

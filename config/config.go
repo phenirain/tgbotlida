@@ -11,6 +11,7 @@ import (
 // Config holds all configuration for the bot
 type Config struct {
 	BotToken       string
+	AdminUserID    int64
 	WelcomeMessage string
 	PhotoURL       string
 	PolicyText     string
@@ -27,14 +28,23 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("BOT_TOKEN environment variable is required")
 	}
 
-	// Get database URL (required for PostgreSQL)
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL environment variable is required")
 	}
 
+	var adminUserID int64
+	if s := os.Getenv("ADMIN_USER_ID"); s != "" {
+		id, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("ADMIN_USER_ID must be a number: %w", err)
+		}
+		adminUserID = id
+	}
+
 	cfg := &Config{
 		BotToken:       botToken,
+		AdminUserID:    adminUserID,
 		WelcomeMessage: getEnvOrDefault("WELCOME_MESSAGE", "Welcome to our bot!"),
 		PhotoURL:       getEnvOrDefault("PHOTO_URL", ""),
 		PolicyText:     getEnvOrDefault("POLICY_TEXT", "Please accept our privacy policy to continue."),

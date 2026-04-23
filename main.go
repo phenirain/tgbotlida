@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/phenirain/LidaTgBot/config"
 	"github.com/phenirain/LidaTgBot/database"
+	"github.com/xuri/excelize/v2"
 )
 
 // ConversationState represents the state of a user's conversation
@@ -301,6 +303,48 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	b.setState(userID, StateNone)
 }
 
+// handleXlsx exports all users to xlsx and sends the file (admin only)
+func (b *Bot) handleXlsx(update tgbotapi.Update) {
+	if update.Message.From.ID != b.cfg.AdminUserID {
+		return
+	}
+
+	users, err := b.db.GetAllUsers()
+	if err != nil {
+		log.Printf("xlsx: get users error: %v", err)
+		b.send(tgbotapi.NewMessage(update.Message.Chat.ID, "Ошибка при получении данных."))
+		return
+	}
+
+	f := excelize.NewFile()
+	defer f.Close()
+	sheet := "Users"
+	f.SetSheetName("Sheet1", sheet)
+	headers := []string{"user_id", "username", "email", "created_at"}
+	for i, h := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue(sheet, cell, h)
+	}
+	for row, u := range users {
+		vals := []any{u.UserID, u.Username, u.Email, u.CreatedAt.Format("2006-01-02 15:04:05")}
+		for col, v := range vals {
+			cell, _ := excelize.CoordinatesToCellName(col+1, row+2)
+			f.SetCellValue(sheet, cell, v)
+		}
+	}
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		log.Printf("xlsx: write buffer error: %v", err)
+		b.send(tgbotapi.NewMessage(update.Message.Chat.ID, "Ошибка при создании файла."))
+		return
+	}
+
+	doc := tgbotapi.NewDocument(update.Message.Chat.ID, tgbotapi.FileReader{Name: "users.xlsx", Reader: buf})
+	doc.Caption = fmt.Sprintf("Всего записей: %d", len(users))
+	b.send(doc)
+}
+
 // handleCancel handles the /cancel command
 func (b *Bot) handleCancel(update tgbotapi.Update) {
 	userID := update.Message.From.ID
@@ -328,6 +372,8 @@ func (b *Bot) Run() {
 					b.handleStart(update)
 				case "cancel":
 					b.handleCancel(update)
+				case "xlsx":
+					b.handleXlsx(update)
 				}
 			} else {
 				b.handleMessage(update)
