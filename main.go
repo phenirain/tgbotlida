@@ -66,6 +66,12 @@ func (b *Bot) setState(userID int64, state ConversationState) {
 	}
 }
 
+func (b *Bot) send(c tgbotapi.Chattable) {
+	if _, err := b.api.Send(c); err != nil {
+		log.Printf("send error: %v", err)
+	}
+}
+
 // isValidEmail validates email format
 func isValidEmail(email string) bool {
 	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
@@ -82,13 +88,13 @@ func (b *Bot) handleStart(update tgbotapi.Update) {
 	if err != nil {
 		log.Printf("Error checking user existence: %v", err)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-		b.api.Send(msg)
+		b.send(msg)
 		return
 	}
 
 	if exists {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже отправили свой email. Спасибо!")
-		b.api.Send(msg)
+		b.send(msg)
 		b.setState(userID, StateNone) // Reset state
 		return
 	}
@@ -115,12 +121,12 @@ func (b *Bot) handleStart(update tgbotapi.Update) {
 
 		photoMsg.Caption = b.cfg.WelcomeMessage
 		photoMsg.ReplyMarkup = keyboard
-		b.api.Send(photoMsg)
+		b.send(photoMsg)
 	} else {
 		// If no photo URL, send as text message
 		textMsg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.WelcomeMessage)
 		textMsg.ReplyMarkup = keyboard
-		b.api.Send(textMsg)
+		b.send(textMsg)
 	}
 
 	b.setState(userID, StateAwaitingListenConfirm)
@@ -146,7 +152,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 				query.Message.MessageID,
 				b.cfg.WelcomeMessage,
 			)
-			b.api.Send(editCaption)
+			b.send(editCaption)
 		} else {
 			// Edit text message to remove button
 			editMsg := tgbotapi.NewEditMessageText(
@@ -154,7 +160,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 				query.Message.MessageID,
 				b.cfg.WelcomeMessage,
 			)
-			b.api.Send(editMsg)
+			b.send(editMsg)
 		}
 
 		// Send policy text with "Соглашаюсь" button
@@ -166,7 +172,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 		policyMsg := tgbotapi.NewMessage(query.Message.Chat.ID, b.cfg.PolicyText)
 		policyMsg.ReplyMarkup = keyboard
 		policyMsg.ParseMode = "markdown"
-		b.api.Send(policyMsg)
+		b.send(policyMsg)
 
 		b.setState(userID, StateAwaitingPolicyAccept)
 
@@ -181,7 +187,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 				query.Message.MessageID,
 				"Произошла ошибка. Пожалуйста, попробуйте позже.",
 			)
-			b.api.Send(editMsg)
+			b.send(editMsg)
 			return
 		}
 
@@ -191,7 +197,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 				query.Message.MessageID,
 				"Вы уже отправили свой email. Спасибо!",
 			)
-			b.api.Send(editMsg)
+			b.send(editMsg)
 			b.setState(userID, StateNone)
 			return
 		}
@@ -203,12 +209,12 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 			b.cfg.PolicyText,
 		)
 		editMsg.ParseMode = "markdown" // Enable HTML formatting
-		b.api.Send(editMsg)
+		b.send(editMsg)
 
 		// Send second message asking for email
 		msg := tgbotapi.NewMessage(query.Message.Chat.ID, b.cfg.SecondMessage)
 		msg.ParseMode = "markdown" // Enable HTML formatting
-		b.api.Send(msg)
+		b.send(msg)
 
 		b.setState(userID, StateAwaitingEmail)
 	}
@@ -235,14 +241,14 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	if err != nil {
 		log.Printf("Error checking user existence: %v", err)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-		b.api.Send(msg)
+		b.send(msg)
 		b.setState(userID, StateNone)
 		return
 	}
 
 	if exists {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже отправили свой email. Спасибо!")
-		b.api.Send(msg)
+		b.send(msg)
 		b.setState(userID, StateNone)
 		return
 	}
@@ -250,7 +256,7 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	// Validate email
 	if !isValidEmail(email) {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Неверный формат email. Пожалуйста, укажите корректный email адрес:")
-		b.api.Send(msg)
+		b.send(msg)
 		return
 	}
 
@@ -259,14 +265,14 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	if err != nil {
 		log.Printf("Error checking email existence: %v", err)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-		b.api.Send(msg)
+		b.send(msg)
 		b.setState(userID, StateNone)
 		return
 	}
 
 	if emailExists {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Этот email уже зарегистрирован. Пожалуйста, используйте другой email адрес.")
-		b.api.Send(msg)
+		b.send(msg)
 		return
 	}
 
@@ -275,7 +281,7 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	if err != nil {
 		log.Printf("Error saving email: %v", err)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
-		b.api.Send(msg)
+		b.send(msg)
 		b.setState(userID, StateNone)
 		return
 	}
@@ -289,7 +295,7 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.FinalMessage)
 	msg.ReplyMarkup = keyboard
-	b.api.Send(msg)
+	b.send(msg)
 	b.setState(userID, StateNone)
 }
 
@@ -298,7 +304,7 @@ func (b *Bot) handleCancel(update tgbotapi.Update) {
 	userID := update.Message.From.ID
 	b.setState(userID, StateNone)
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Операция отменена.")
-	b.api.Send(msg)
+	b.send(msg)
 }
 
 // Run starts the bot and handles updates
