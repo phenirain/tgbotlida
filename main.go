@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -10,6 +12,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/phenirain/LidaTgBot/config"
 	"github.com/phenirain/LidaTgBot/database"
+	"golang.org/x/net/proxy"
 )
 
 // ConversationState represents the state of a user's conversation
@@ -33,7 +36,23 @@ type Bot struct {
 
 // NewBot creates a new Bot instance
 func NewBot(cfg *config.Config, db *database.Database) (*Bot, error) {
-	api, err := tgbotapi.NewBotAPI(cfg.BotToken)
+	httpClient := &http.Client{}
+
+	if cfg.ProxyURL != "" {
+		proxyURL, err := url.Parse(cfg.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid PROXY_URL: %w", err)
+		}
+		dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create proxy dialer: %w", err)
+		}
+		httpClient.Transport = &http.Transport{
+			Dial: dialer.Dial,
+		}
+	}
+
+	api, err := tgbotapi.NewBotAPIWithClient(cfg.BotToken, tgbotapi.APIEndpoint, httpClient)
 	if err != nil {
 		return nil, err
 	}

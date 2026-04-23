@@ -18,6 +18,7 @@ type Config struct {
 	FinalMessage   string
 	AlbumLink      string
 	DatabaseURL    string
+	ProxyURL       string
 }
 
 // Load reads configuration from environment variables
@@ -43,6 +44,7 @@ func Load() (*Config, error) {
 		FinalMessage:   getEnvOrDefault("FINAL_MESSAGE", "Thank you! Your email has been saved."),
 		AlbumLink:      getEnvOrDefault("ALBUM_LINK", "https://example.com"),
 		DatabaseURL:    databaseURL,
+		ProxyURL:       os.Getenv("PROXY_URL"),
 	}
 
 	return cfg, nil
