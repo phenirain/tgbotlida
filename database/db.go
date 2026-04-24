@@ -111,6 +111,17 @@ func (d *Database) GetAllUsers() ([]User, error) {
 	return users, rows.Err()
 }
 
+func (d *Database) UpdateUserEmail(userID int64, email string) error {
+	_, err := d.db.Exec(
+		"UPDATE users SET email = $1 WHERE user_id = $2",
+		email, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update user email: %w", err)
+	}
+	return nil
+}
+
 func (d *Database) Close() error {
 	return d.db.Close()
 }

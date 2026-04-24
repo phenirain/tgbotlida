@@ -23,6 +23,7 @@ const (
 	StateAwaitingListenConfirm
 	StateAwaitingPolicyAccept
 	StateAwaitingEmail
+	StateAwaitingEmailChange
 )
 
 // Bot represents the Telegram bot instance
@@ -97,9 +98,15 @@ func (b *Bot) handleStart(update tgbotapi.Update) {
 	}
 
 	if exists {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже отправили свой email. Спасибо!")
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Изменить почту", "change_email"),
+			),
+		)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже зарегистрированы. Хотите изменить email?")
+		msg.ReplyMarkup = keyboard
 		b.send(msg)
-		b.setState(userID, StateNone) // Reset state
+		b.setState(userID, StateNone)
 		return
 	}
 
@@ -183,6 +190,15 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 
 		b.setState(userID, StateAwaitingPolicyAccept)
 
+	case "change_email":
+		editMsg := tgbotapi.NewEditMessageText(
+			query.Message.Chat.ID,
+			query.Message.MessageID,
+			"Введите новый email адрес:",
+		)
+		b.send(editMsg)
+		b.setState(userID, StateAwaitingEmailChange)
+
 	case "accept_policy":
 		// User clicked "Соглашаюсь" button
 		// Check if user already submitted (async)
@@ -232,8 +248,11 @@ func (b *Bot) handleMessage(update tgbotapi.Update) {
 	userID := update.Message.From.ID
 	state := b.getState(userID)
 
-	if state == StateAwaitingEmail {
+	switch state {
+	case StateAwaitingEmail:
 		b.handleEmailSubmission(update)
+	case StateAwaitingEmailChange:
+		b.handleEmailChange(update)
 	}
 }
 
@@ -303,6 +322,45 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, b.cfg.FinalMessage)
 	msg.ReplyMarkup = keyboard
 	msg.ParseMode = "html"
+	b.send(msg)
+	b.setState(userID, StateNone)
+}
+
+// handleEmailChange handles email update for already registered users
+func (b *Bot) handleEmailChange(update tgbotapi.Update) {
+	userID := update.Message.From.ID
+	email := strings.TrimSpace(update.Message.Text)
+
+	if !isValidEmail(email) {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Неверный формат email. Пожалуйста, укажите корректный email адрес:")
+		b.send(msg)
+		return
+	}
+
+	emailExists, err := b.db.EmailExists(email)
+	if err != nil {
+		log.Printf("Error checking email existence: %v", err)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+		b.send(msg)
+		b.setState(userID, StateNone)
+		return
+	}
+
+	if emailExists {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Этот email уже зарегистрирован. Пожалуйста, используйте другой email адрес.")
+		b.send(msg)
+		return
+	}
+
+	if err := b.db.UpdateUserEmail(userID, email); err != nil {
+		log.Printf("Error updating email: %v", err)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+		b.send(msg)
+		b.setState(userID, StateNone)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Email успешно обновлён!")
 	b.send(msg)
 	b.setState(userID, StateNone)
 }
