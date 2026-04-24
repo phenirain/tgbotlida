@@ -163,6 +163,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 				query.Message.MessageID,
 				b.cfg.WelcomeMessage,
 			)
+			editMsg.ParseMode = "html"
 			b.send(editMsg)
 		}
 
