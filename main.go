@@ -157,6 +157,7 @@ func (b *Bot) handleCallbackQuery(update tgbotapi.Update) {
 				query.Message.MessageID,
 				b.cfg.WelcomeMessage,
 			)
+			editCaption.ParseMode = "html"
 			b.send(editCaption)
 		} else {
 			// Edit text message to remove button
