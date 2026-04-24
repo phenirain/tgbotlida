@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -387,6 +389,13 @@ func (b *Bot) Run() {
 }
 
 func main() {
+	logFile, err := os.OpenFile("bot.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer logFile.Close()
+	log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
