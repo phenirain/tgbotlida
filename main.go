@@ -415,11 +415,56 @@ func (b *Bot) handleCancel(update tgbotapi.Update) {
 	b.send(msg)
 }
 
+// handleHelp handles the /help command
+func (b *Bot) handleHelp(update tgbotapi.Update) {
+	text := `<b>Помощь и решение проблем</b>
+
+<b>Бот не отвечает</b>
+Попробуйте отправить /start, чтобы начать сначала. Если бот по-прежнему не реагирует — подождите минуту и повторите попытку.
+
+<b>«Неверный формат email»</b>
+Убедитесь, что адрес написан в формате: <code>name@example.com</code>. Пробелы и лишние символы не допускаются.
+
+<b>«Этот email уже зарегистрирован»</b>
+Указанный адрес уже привязан к другому аккаунту. Используйте другой email или обратитесь к администратору.
+
+<b>«Вы уже зарегистрированы»</b>
+Ваш Telegram аккаунт уже есть в базе. Нажмите <b>Изменить почту</b> в ответном сообщении или отправьте /start снова.
+
+<b>Ошибка при сохранении данных</b>
+Временная проблема с базой данных. Отправьте /cancel, затем /start и попробуйте ещё раз. Если ошибка повторяется — сообщите администратору.
+
+<b>Застряли на каком-то шаге</b>
+Отправьте /cancel — это сбросит текущее состояние. После этого можно начать заново с /start.
+
+<b>Доступные команды</b>
+/start — начать регистрацию
+/help — показать эту справку
+/cancel — отменить текущее действие`
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
+	msg.ParseMode = "html"
+	b.send(msg)
+}
+
+// registerCommands registers bot commands in the Telegram menu
+func (b *Bot) registerCommands() {
+	commands := []tgbotapi.BotCommand{
+		{Command: "start", Description: "Начать регистрацию"},
+		{Command: "help", Description: "Помощь и решение проблем"},
+		{Command: "cancel", Description: "Отменить текущее действие"},
+	}
+	if _, err := b.api.Request(tgbotapi.NewSetMyCommands(commands...)); err != nil {
+		log.Printf("Failed to register commands: %v", err)
+	}
+}
+
 // Run starts the bot and handles updates
 func (b *Bot) Run() {
 	if _, err := b.api.Request(tgbotapi.DeleteWebhookConfig{}); err != nil {
 		log.Printf("Failed to delete webhook: %v", err)
 	}
+	b.registerCommands()
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := b.api.GetUpdatesChan(u)
@@ -432,6 +477,8 @@ func (b *Bot) Run() {
 				switch update.Message.Command() {
 				case "start":
 					b.handleStart(update)
+				case "help":
+					b.handleHelp(update)
 				case "cancel":
 					b.handleCancel(update)
 				case "xlsx":
