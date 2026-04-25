@@ -5,6 +5,7 @@
 
 # Start containers in detached mode
 up:
+	@mkdir -p ./logs
 	docker compose up -d --build
 
 # Stop and remove containers
