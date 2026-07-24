@@ -11,7 +11,7 @@ import (
 // Config holds all configuration for the bot
 type Config struct {
 	BotToken       string
-	AdminUserID    int64
+	AdminUserIDs   map[int64]struct{}
 	WelcomeMessage string
 	PhotoURL       string
 	PolicyText     string
@@ -33,18 +33,21 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DATABASE_URL environment variable is required")
 	}
 
-	var adminUserID int64
+	adminUserIDs := make(map[int64]struct{}, 2)
 	if s := os.Getenv("ADMIN_USER_ID"); s != "" {
-		id, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("ADMIN_USER_ID must be a number: %w", err)
+		ids := strings.Split(s, ",")
+		for i := 0; i < len(ids); i++ {
+			id, err := strconv.ParseInt(ids[i], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("ADMIN_USER_ID must be a number: %w", err)
+			}
+			adminUserIDs[id] = struct{}{}
 		}
-		adminUserID = id
 	}
 
 	cfg := &Config{
 		BotToken:       botToken,
-		AdminUserID:    adminUserID,
+		AdminUserIDs:   adminUserIDs,
 		WelcomeMessage: getEnvOrDefault("WELCOME_MESSAGE", "Welcome to our bot!"),
 		PhotoURL:       getEnvOrDefault("PHOTO_URL", ""),
 		PolicyText:     getEnvOrDefault("POLICY_TEXT", "Please accept our privacy policy to continue."),

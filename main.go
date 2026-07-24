@@ -367,7 +367,7 @@ func (b *Bot) handleEmailChange(update tgbotapi.Update) {
 
 // handleXlsx exports all users to xlsx and sends the file (admin only)
 func (b *Bot) handleXlsx(update tgbotapi.Update) {
-	if update.Message.From.ID != b.cfg.AdminUserID {
+	if _, ok := b.cfg.AdminUserIDs[update.Message.From.ID]; ok == false {
 		return
 	}
 
