@@ -315,7 +315,7 @@ func (b *Bot) handleEmailSubmission(update tgbotapi.Update) {
 	// Send final message with album link button
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("Слушать альбом", b.cfg.AlbumLink),
+			tgbotapi.NewInlineKeyboardButtonURL("Слушать трек", b.cfg.AlbumLink),
 		),
 	)
 
