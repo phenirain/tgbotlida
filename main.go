@@ -110,10 +110,10 @@ func (b *Bot) handleStart(update tgbotapi.Update) {
 		return
 	}
 
-	// Create "Слушаю" button
+	// Create "Погнали" button
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Слушаю", "listen_confirm"),
+			tgbotapi.NewInlineKeyboardButtonData("Погнали!", "listen_confirm"),
 		),
 	)
 
